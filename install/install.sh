@@ -14,6 +14,7 @@ fi
 $SUDO chmod +x nhcService
 $SUDO mkdir -p /usr/local/nhc
 $SUDO mv nhcService /usr/local/nhc
+$SUDO mv config.json /usr/local/nhc
 
 echo 'Adding service user'
 id -u nhcservice >/dev/null 2>&1 || $SUDO useradd nhcservice -s /sbin/nologin -M
@@ -62,6 +63,6 @@ $SUDO systemctl start nhcservice
 
 echo ' '
 echo 'Installation done'
-echo 'See "sudo systemctl status nhc.service" and "journalctl -xe" for details'
+echo 'See "sudo systemctl status nhcservice" and "journalctl -xe" for details'
 echo 'To limit memory wear on the RevPi Core module, logs are volatile (RAM-based)'
 echo 'See "sudo journalctl -f -u nhc" or "journalctl -u nhc" for all the journal'

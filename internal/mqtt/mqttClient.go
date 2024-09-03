@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"reflect"
 
 	helpers "nhc-hvac/internal/helpers"
 	nhcModel "nhc-hvac/internal/nhc"
@@ -42,20 +41,20 @@ func onMessageReceived(client mqtt.Client, msg mqtt.Message) {
 
 	// If HVAC Thermostat device is found, extract the desired properties
 	if found {
-		helpers.DebugLog("HVAC Thermostat device found", true)
-		v := reflect.ValueOf(hvacThermostat.Properties)
-		t := v.Type()
+		// helpers.DebugLog("HVAC Thermostat device found", true)
+		// v := reflect.ValueOf(hvacThermostat.Properties)
+		// t := v.Type()
 
-		for i := 0; i < v.NumField(); i++ {
-			field := t.Field(i)
-			value := v.Field(i)
-			helpers.DebugLog(fmt.Sprintf("%s: %v", field.Name, value), false)
-		}
-		helpers.DebugLog("\n", false)
+		// for i := 0; i < v.NumField(); i++ {
+		// 	field := t.Field(i)
+		// 	value := v.Field(i)
+		// 	helpers.DebugLog(fmt.Sprintf("%s: %v", field.Name, value), false)
+		// }
+		// helpers.DebugLog("\n", false)
 		thermostatMessage <- hvacThermostat
 	} else {
-		helpers.DebugLog("Other Message Received", true)
-		helpers.DebugLog(string(msg.Payload())+"\n", false)
+		//helpers.DebugLog("Other Message Received", true)
+		//helpers.DebugLog(string(msg.Payload())+"\n", false)
 	}
 
 }
