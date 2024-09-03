@@ -20,3 +20,32 @@ Parameters :
 
     Hysteresis in minutes to limit updates
     "Hysteresis": 10
+
+## Usefull Go Commands
+
+Cheat sheet for Go, RevPi and NBA
+
+### Modules / Packages
+
+SUMDB might have 30mn delay when updating, so a way around it if versions is not availaible is to set it off:
+go clean --modcache
+GOSUMDB=off go get -u github.com/package...
+
+### Cross-Compile
+
+**Linux 64-bits:** env GOOS=linux GOARCH=amd64 go build main.go
+
+**Raspberry Pi 3+/4:** env GOOS=linux GOARCH=arm GOARM=7 go build -o ~/Dev/github/nhc/bin
+
+Get CPU Information:
+
+cat /proc/cpuinfo
+[(See Also)](https://github.com/goreleaser/goreleaser/issues/36)
+
+### RevPi Core 3+
+
+sudo teamviewer-iot-agent stop daemon -> not enough (comes back after restart)
+even if not listed on here: service --status-all
+
+remove the package:
+teamviewer-revpi
