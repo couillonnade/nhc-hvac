@@ -5,28 +5,59 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"reflect"
+
+	helpers "nhc-hvac/internal/helpers"
+	nhcModel "nhc-hvac/internal/nhc"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
-type Message struct {
-	Topic   string `json:"topic"`
-	Payload string `json:"payload"`
-}
+var client mqtt.Client
+var thermostatMessage = make(chan nhcModel.Device)
 
 func onMessageReceived(client mqtt.Client, msg mqtt.Message) {
-	message := Message{
-		Topic:   msg.Topic(),
-		Payload: string(msg.Payload()),
-	}
-
-	jsonMessage, err := json.Marshal(message)
+	// Unmarshal JSON data
+	var response nhcModel.Response
+	err := json.Unmarshal(msg.Payload(), &response)
 	if err != nil {
-		fmt.Printf("Error converting message to JSON: %v\n", err)
+		helpers.DebugLog(fmt.Sprint("Error decoding JSON:", err), true)
 		return
 	}
 
-	fmt.Println(string(jsonMessage))
+	// Access the Devices array within the Params object
+	devices := response.Params[0].Devices
+
+	// Find the HVAC Thermostat device
+	var hvacThermostat nhcModel.Device
+	found := false
+	for _, device := range devices {
+		// device.Model not received in devices.status messages
+		if device.Uuid == helpers.ClientConfig.HVAC_UUID { // && device.Model == "hvacthermostat" {
+			hvacThermostat = device
+			found = true
+			break
+		}
+	}
+
+	// If HVAC Thermostat device is found, extract the desired properties
+	if found {
+		helpers.DebugLog("HVAC Thermostat device found", true)
+		v := reflect.ValueOf(hvacThermostat.Properties)
+		t := v.Type()
+
+		for i := 0; i < v.NumField(); i++ {
+			field := t.Field(i)
+			value := v.Field(i)
+			helpers.DebugLog(fmt.Sprintf("%s: %v", field.Name, value), false)
+		}
+		helpers.DebugLog("\n", false)
+		thermostatMessage <- hvacThermostat
+	} else {
+		helpers.DebugLog("Other Message Received", true)
+		helpers.DebugLog(string(msg.Payload())+"\n", false)
+	}
+
 }
 
 func connect(broker, username, password string) mqtt.Client {
@@ -42,7 +73,7 @@ func connect(broker, username, password string) mqtt.Client {
 
 	client := mqtt.NewClient(opts)
 	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		fmt.Printf("Error connecting to MQTT broker: %v\n", token.Error())
+		helpers.DebugLog(fmt.Sprintf("Error connecting to MQTT broker: %v\n", token.Error()), true)
 		os.Exit(1)
 	}
 
@@ -52,9 +83,10 @@ func connect(broker, username, password string) mqtt.Client {
 func subscribe(client mqtt.Client, topics []string) {
 	for _, topic := range topics {
 		if token := client.Subscribe(topic, 0, onMessageReceived); token.Wait() && token.Error() != nil {
-			fmt.Printf("Error subscribing to topic %s: %v\n", topic, token.Error())
+			helpers.DebugLog(fmt.Sprintf("Error subscribing to topic %s: %v\n", topic, token.Error()), true)
 		} else {
-			fmt.Printf("Subscribed to topic: %s\n", topic)
+			helpers.DebugLog(fmt.Sprintf("Subscribed to topic: %s\n", topic), true)
+
 		}
 	}
 }
@@ -62,36 +94,69 @@ func subscribe(client mqtt.Client, topics []string) {
 func publish(client mqtt.Client, topic, message string) {
 	token := client.Publish(topic, 0, false, message)
 	token.Wait()
-	fmt.Printf("Published message: %s to topic: %s\n", message, topic)
+	// helpers.DebugLog(fmt.Sprintf("Published message: %s to topic: %s\n", message, topic), true)
 }
 
-func StartListening() {
-	broker := "mqtts://192.168.123.79:8884"
-	username := "hobby"
-	password := "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJob2JieSIsImlhdCI6MTcyNDQzMzQ5MCwiZXhwIjoxNzU1OTAwMDAwLCJyb2xlIjpbImhvYmJ5Il0sImF1ZCI6IkZQMDAxMTJBMjMzMTlGIiwiaXNzIjoibmhjLWNvcmUiLCJqdGkiOiI0ZmU1YTUzNy1mZjVmLTRiM2UtODI3Ny0zZTJmOWJkYzJjOTEifQ.YgFVN4rgj2etXbrYMlJgIHcTOhPmc_7VdS6FQwyBba2xcwueBneESNqT-c47oEjYQRy5risKXEHvUl2pe7kmA6GicNyWAyxvaUQftRgzuBo26vDakp9vSzADIGc2QCrs6cJto38lzGmHNKew10lqx6og8N1AeIJDiJ9TSD1wrzpkAZxdyQErRBeCLUjYjO7lKnuBZYK-lF6Zs-Nkqm4CnMNqKZ9Rr9iLGIk7u8ppnWhooiiuiM2EnRXQ2cGYmXSbEOitd6Uz8Dm1_7gP3DZZ5hL6GPcjaoVIPZJHd3KDkhnSMobCpQQHvnABy_gL6LXLsRtUAiofmrJql8Jlo6x4dQ"
+func GetHvacThData() {
+	if !client.IsConnected() {
+		helpers.DebugLog("MQTT Client is not connected", true)
+		return
+	}
 
-	client := connect(broker, username, password)
-	defer client.Disconnect(250)
+	jsonMessage := `{
+		"Method": "devices.list"
+	}`
+
+	publish(client, "hobby/control/devices/cmd", jsonMessage)
+}
+
+func StartListeningThermostat(abort <-chan struct{}) <-chan nhcModel.Device {
+	client = connect(helpers.ClientConfig.Broker,
+		helpers.ClientConfig.Username,
+		helpers.ClientConfig.Password)
 
 	topics := []string{"hobby/control/devices/evt",
 		"hobby/control/devices/rsp",
 		"hobby/control/devices/err"}
 	subscribe(client, topics)
 
-	// Medium / High / Low
-	jsonMessage := `{
-						"Method": "devices.control",
-						"Params": [{
-							"Devices": [{
-								"Properties": [{
-									"FanSpeed": "Low"
-								}],
-								"Uuid": "abf89e98-d48d-4c9a-87f3-afd5758768be"
-							}]
-						}]
-					}`
-	publish(client, "hobby/control/devices/cmd", jsonMessage)
+	ch := make(chan nhcModel.Device)
 
-	// Keep the program running to receive messages
-	select {}
+	go func() {
+		defer close(ch)
+
+		for {
+			select {
+			case <-abort:
+				helpers.DebugLog("Disconnecting MQTT Client...", true)
+				client.Disconnect(250)
+				return
+
+			case t := <-thermostatMessage:
+				ch <- t
+			}
+		}
+	}()
+
+	return ch
+}
+
+func SetFanSpeed(speed nhcModel.FanSpeed) {
+	if !client.IsConnected() {
+		helpers.DebugLog("MQTT Client is not connected", true)
+		return
+	}
+
+	jsonMessage := `{
+		"Method": "devices.control",
+		"Params": [{
+			"Devices": [{
+				"Properties": [{
+					"FanSpeed": "` + speed.String() + `"
+				}],
+				"Uuid": "` + helpers.ClientConfig.HVAC_UUID + `"
+			}]
+		}]
+	}`
+	publish(client, "hobby/control/devices/cmd", jsonMessage)
 }

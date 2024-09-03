@@ -1,0 +1,9 @@
+{
+    "broker": "mqtts://ipaddress:8884",
+    "username": "hobby",
+    "password": "certificatfromniko",
+    "HVAC-TH-Uuid": "guid-from-hvac-thermostat-device",
+    "SmallTempDelta": 0.5,
+    "ModerateTempDelta": 3,
+    "Hysteresis": 10
+}
