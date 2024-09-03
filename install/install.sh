@@ -1,8 +1,5 @@
 #!/bin/sh
 
-# Usage:
-#   curl -sfL https://www.github.com/nhc-hvac/install.sh | sh -
-
 # --- use sudo if we are not already root ---
 SUDO=sudo
 if [ "$(id -u)" -eq 0 ]; then
@@ -14,8 +11,6 @@ if [ -s /lib/systemd/system/nhcservice.service ]; then
   $SUDO systemctl stop nhcservice
 fi
 
-echo 'Downloading nhc from server'
-wget https://www.github.com/nhc-hvac/nhcService
 $SUDO chmod +x nhcService
 $SUDO mkdir -p /usr/local/nhc
 $SUDO mv nhcService /usr/local/nhc
