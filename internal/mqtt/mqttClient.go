@@ -17,7 +17,7 @@ var thermostatMessage = make(chan nhcModel.Device)
 var NikoHvac nhcModel.Device
 
 func onMessageReceived(client mqtt.Client, msg mqtt.Message) {
-	// Unmarshal JSON data
+	// Unmarshal JSON data to interfacec because some somes values might be missing or empty
 	var updateMap map[string]interface{}
 	if err := json.Unmarshal(msg.Payload(), &updateMap); err != nil {
 		helpers.DebugLog(fmt.Sprint("Error decoding JSON:", err), true)
@@ -27,6 +27,7 @@ func onMessageReceived(client mqtt.Client, msg mqtt.Message) {
 	// Apply the updates to the correct device based on UUID
 	NikoHvac.UpdateDeviceByUuid(updateMap)
 
+	// TODO: place the comparaison with previous state here and send a list of updated fields to the channel
 	// Send the updated device to the channel
 	thermostatMessage <- NikoHvac
 

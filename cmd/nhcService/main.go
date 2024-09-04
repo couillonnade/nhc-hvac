@@ -101,6 +101,7 @@ func updateFanSpeed(new nhcModel.Device, current *nhcModel.Device) {
 	forceFanUpdate := false
 
 	// There is always and only one property in the array
+	// TODO: move the comparaison to mqttClient and parse list of updates here only.
 	if *current.Properties[0].AmbientTemperature != *new.Properties[0].AmbientTemperature {
 		*current.Properties[0].AmbientTemperature = *new.Properties[0].AmbientTemperature
 		helpers.DebugLog(fmt.Sprintf("Ambient temperature changed: %f", *new.Properties[0].AmbientTemperature), true)
@@ -156,6 +157,7 @@ func updateFanSpeed(new nhcModel.Device, current *nhcModel.Device) {
 		forceFanUpdate = true
 	}
 
+	// TODO: Create a pipe to avoid blasiting mqtt messages when too many force updated at the same time
 	if (forceFanUpdate || askFanUpdate) && *current.Properties[0].ThermostatOn {
 		// TODO: large hysteresis if high delta and low if small delta, or adapted to temperature change.
 		if forceFanUpdate || (time.Since(lastUpdate) > time.Duration(helpers.ClientConfig.Hysteresis)*time.Minute) {
