@@ -1,6 +1,10 @@
 # nbc-hvac
 
-This service sets the FAN speed of Niko Home Control HVAC automatically.
+This minimalist service sets the FAN speed of Niko Home Control HVAC automatically.
+You must compile for the target platform and update the config.json file (see below).
+
+It can be launch on a terminal or there is a basic script available to install it as a service on linux. You need to place the config file and binary in a folder and set chchmod +x ./install.sh to launch the script. 
+
 
 Parameters :
 
@@ -23,7 +27,7 @@ Parameters :
 
 ## Usefull Go Commands
 
-Cheat sheet for Go, RevPi and NBA
+Cheat sheet for Go and RevPi
 
 ### Modules / Packages
 
