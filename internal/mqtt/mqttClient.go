@@ -14,48 +14,21 @@ import (
 
 var client mqtt.Client
 var thermostatMessage = make(chan nhcModel.Device)
+var NikoHvac nhcModel.Device
 
 func onMessageReceived(client mqtt.Client, msg mqtt.Message) {
 	// Unmarshal JSON data
-	var response nhcModel.Response
-	err := json.Unmarshal(msg.Payload(), &response)
-	if err != nil {
+	var updateMap map[string]interface{}
+	if err := json.Unmarshal(msg.Payload(), &updateMap); err != nil {
 		helpers.DebugLog(fmt.Sprint("Error decoding JSON:", err), true)
 		return
 	}
 
-	// Access the Devices array within the Params object
-	devices := response.Params[0].Devices
+	// Apply the updates to the correct device based on UUID
+	NikoHvac.UpdateDeviceByUuid(updateMap)
 
-	// Find the HVAC Thermostat device
-	var hvacThermostat nhcModel.Device
-	found := false
-	for _, device := range devices {
-		// device.Model not received in devices.status messages
-		if device.Uuid == helpers.ClientConfig.HVAC_UUID { // && device.Model == "hvacthermostat" {
-			hvacThermostat = device
-			found = true
-			break
-		}
-	}
-
-	// If HVAC Thermostat device is found, extract the desired properties
-	if found {
-		// helpers.DebugLog("HVAC Thermostat device found", true)
-		// v := reflect.ValueOf(hvacThermostat.Properties)
-		// t := v.Type()
-
-		// for i := 0; i < v.NumField(); i++ {
-		// 	field := t.Field(i)
-		// 	value := v.Field(i)
-		// 	helpers.DebugLog(fmt.Sprintf("%s: %v", field.Name, value), false)
-		// }
-		// helpers.DebugLog("\n", false)
-		thermostatMessage <- hvacThermostat
-	} else {
-		//helpers.DebugLog("Other Message Received", true)
-		//helpers.DebugLog(string(msg.Payload())+"\n", false)
-	}
+	// Send the updated device to the channel
+	thermostatMessage <- NikoHvac
 
 }
 
@@ -110,6 +83,30 @@ func GetHvacThData() {
 }
 
 func StartListeningThermostat(abort <-chan struct{}) <-chan nhcModel.Device {
+
+	// Initial device state, set the UUID to get the HVAC Thermostat device response messages
+	NikoHvac = nhcModel.Device{
+		Uuid:       helpers.ClientConfig.HVAC_UUID,
+		Identifier: "",
+		Model:      "",
+		Type:       "",
+		Name:       "",
+		Properties: []nhcModel.Property{
+			{
+				ThermostatOn:        new(bool),
+				HvacOn:              new(bool),
+				Program:             new(string),
+				OperationMode:       new(string),
+				AmbientTemperature:  new(float64),
+				SetpointTemperature: new(float64),
+				FanSpeed:            new(nhcModel.FanSpeed),
+				OverruleActive:      new(bool),
+				OverruleSetpoint:    new(float64),
+				OverruleTime:        new(string),
+			},
+		},
+	}
+
 	client = connect(helpers.ClientConfig.Broker,
 		helpers.ClientConfig.Username,
 		helpers.ClientConfig.Password)

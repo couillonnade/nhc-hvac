@@ -6,7 +6,6 @@ import (
 	"math"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -32,7 +31,27 @@ func main() {
 	ch := mqttClient.StartListeningThermostat(abort)
 	mqttClient.GetHvacThData()
 
-	var nikoHvac nhcModel.Device
+	nikoHvac := nhcModel.Device{
+		Uuid:       "",
+		Identifier: "",
+		Model:      "",
+		Type:       "",
+		Name:       "",
+		Properties: []nhcModel.Property{
+			{
+				ThermostatOn:        new(bool),
+				HvacOn:              new(bool),
+				Program:             new(string),
+				OperationMode:       new(string),
+				AmbientTemperature:  new(float64),
+				SetpointTemperature: new(float64),
+				FanSpeed:            new(nhcModel.FanSpeed),
+				OverruleActive:      new(bool),
+				OverruleSetpoint:    new(float64),
+				OverruleTime:        new(string),
+			},
+		},
+	}
 
 	for {
 		select {
@@ -43,7 +62,7 @@ func main() {
 
 		case d, ok := <-ch:
 			if ok {
-				updateThData(d, &nikoHvac)
+				updateFanSpeed(d, &nikoHvac)
 			} else {
 				// channel has been closed
 				helpers.DebugLog("MQTT Channel closed", true)
@@ -55,9 +74,9 @@ func main() {
 }
 
 // CalculateFanSpeed determines the fan speed based on the temperature difference.
-func calculateFanSpeed(currentTemp, setPoint float64, nikoHvac nhcModel.Device) nhcModel.FanSpeed {
-	if nikoHvac.Properties.OperationMode == "Cooling" && currentTemp > setPoint ||
-		nikoHvac.Properties.OperationMode == "Heating" && currentTemp < setPoint {
+func calculateFanSpeed(currentTemp, setPoint float64, current nhcModel.Device) nhcModel.FanSpeed {
+	if *current.Properties[0].OperationMode == "Cooling" && currentTemp > setPoint ||
+		*current.Properties[0].OperationMode == "Heating" && currentTemp < setPoint {
 
 		diff := math.Abs(setPoint - currentTemp)
 
@@ -77,95 +96,74 @@ func calculateFanSpeed(currentTemp, setPoint float64, nikoHvac nhcModel.Device) 
 	}
 }
 
-func updateThData(d nhcModel.Device, nikoHvac *nhcModel.Device) {
+func updateFanSpeed(new nhcModel.Device, current *nhcModel.Device) {
 	askFanUpdate := false
 	forceFanUpdate := false
-	// store a copy of the device data but check if not empty because
-	// the device data is not always complete on update messages
-	if d.Properties.AmbientTemperature != "" {
-		if nikoHvac.Properties.AmbientTemperature != d.Properties.AmbientTemperature {
-			nikoHvac.Properties.AmbientTemperature = d.Properties.AmbientTemperature
-			helpers.DebugLog(fmt.Sprintf("Ambient temperature changed: %s", d.Properties.AmbientTemperature), true)
-			// ambiant has changed, calculate fan
-			askFanUpdate = true
-		}
+
+	// There is always and only one property in the array
+	if *current.Properties[0].AmbientTemperature != *new.Properties[0].AmbientTemperature {
+		*current.Properties[0].AmbientTemperature = *new.Properties[0].AmbientTemperature
+		helpers.DebugLog(fmt.Sprintf("Ambient temperature changed: %f", *new.Properties[0].AmbientTemperature), true)
+		askFanUpdate = true
 	}
 
-	if d.Properties.SetpointTemperature != "" {
-		if nikoHvac.Properties.SetpointTemperature != d.Properties.SetpointTemperature {
-			nikoHvac.Properties.SetpointTemperature = d.Properties.SetpointTemperature
-			helpers.DebugLog(fmt.Sprintf("Setpoint temperature changed: %s", d.Properties.SetpointTemperature), true)
-			forceFanUpdate = true
-		}
+	if *current.Properties[0].SetpointTemperature != *new.Properties[0].SetpointTemperature {
+		*current.Properties[0].SetpointTemperature = *new.Properties[0].SetpointTemperature
+		helpers.DebugLog(fmt.Sprintf("Setpoint temperature changed: %f", *new.Properties[0].SetpointTemperature), true)
+		forceFanUpdate = true
 	}
-	if d.Properties.FanSpeed != "" {
-		if nikoHvac.Properties.FanSpeed != d.Properties.FanSpeed {
-			nikoHvac.Properties.FanSpeed = d.Properties.FanSpeed
-		}
+
+	if *current.Properties[0].FanSpeed != *new.Properties[0].FanSpeed {
+		*current.Properties[0].FanSpeed = *new.Properties[0].FanSpeed
 	}
-	if d.Properties.OperationMode != "" {
-		if nikoHvac.Properties.OperationMode != d.Properties.OperationMode {
-			nikoHvac.Properties.OperationMode = d.Properties.OperationMode
-			forceFanUpdate = true
-		}
+
+	if *current.Properties[0].OperationMode != *new.Properties[0].OperationMode {
+		*current.Properties[0].OperationMode = *new.Properties[0].OperationMode
+		forceFanUpdate = true
 	}
-	if d.Properties.Program != "" {
-		if nikoHvac.Properties.Program != d.Properties.Program {
-			nikoHvac.Properties.Program = d.Properties.Program
-			forceFanUpdate = true
-		}
+
+	if *current.Properties[0].Program != *new.Properties[0].Program {
+		*current.Properties[0].Program = *new.Properties[0].Program
+		forceFanUpdate = true
 		// TODO: program handling programs are not yet implemented
 	}
 
-	if d.Properties.OverruleActive != "" {
-		if nikoHvac.Properties.OverruleActive != d.Properties.OverruleActive {
-			nikoHvac.Properties.OverruleActive = d.Properties.OverruleActive
-			helpers.DebugLog(fmt.Sprintf("Overrule active changed: %s", d.Properties.OverruleActive), true)
-			forceFanUpdate = true
-		}
+	if *current.Properties[0].OverruleActive != *new.Properties[0].OverruleActive {
+		*current.Properties[0].OverruleActive = *new.Properties[0].OverruleActive
+		helpers.DebugLog(fmt.Sprintf("Overrule active changed: %t", *new.Properties[0].OverruleActive), true)
+		forceFanUpdate = true
 	}
 
-	if d.Properties.OverruleSetpoint != "" {
-		if nikoHvac.Properties.OverruleSetpoint != d.Properties.OverruleSetpoint {
-			nikoHvac.Properties.OverruleSetpoint = d.Properties.OverruleSetpoint
-			helpers.DebugLog(fmt.Sprintf("Overrule setpoint changed: %s", d.Properties.OverruleSetpoint), true)
-			forceFanUpdate = true
-		}
-	}
-	if d.Properties.OverruleTime != "" {
-		if nikoHvac.Properties.OverruleTime != d.Properties.OverruleTime {
-			nikoHvac.Properties.OverruleTime = d.Properties.OverruleTime
-			helpers.DebugLog(fmt.Sprintf("Overrule time changed: %s", d.Properties.OverruleTime), true)
-			forceFanUpdate = true
-		}
+	if *current.Properties[0].OverruleSetpoint != *new.Properties[0].OverruleSetpoint {
+		*current.Properties[0].OverruleSetpoint = *new.Properties[0].OverruleSetpoint
+		helpers.DebugLog(fmt.Sprintf("Overrule setpoint changed: %f", *new.Properties[0].OverruleSetpoint), true)
+		forceFanUpdate = true
 	}
 
-	if d.Properties.HvacOn != "" {
-		if nikoHvac.Properties.HvacOn != d.Properties.HvacOn {
-			nikoHvac.Properties.HvacOn = d.Properties.HvacOn
-		}
+	if *current.Properties[0].OverruleTime != *new.Properties[0].OverruleTime {
+		*current.Properties[0].OverruleTime = *new.Properties[0].OverruleTime
+		helpers.DebugLog(fmt.Sprintf("Overrule time changed: %s", *new.Properties[0].OverruleTime), true)
+		forceFanUpdate = true
 	}
 
-	if d.Properties.ThermostatOn != "" {
-		if nikoHvac.Properties.ThermostatOn != d.Properties.ThermostatOn {
-			nikoHvac.Properties.ThermostatOn = d.Properties.ThermostatOn
-			helpers.DebugLog(fmt.Sprintf("Thermostat Status changed: %s", d.Properties.ThermostatOn), true)
-			forceFanUpdate = true
-		}
+	if *current.Properties[0].HvacOn != *new.Properties[0].HvacOn {
+		*current.Properties[0].HvacOn = *new.Properties[0].HvacOn
 	}
 
-	if (forceFanUpdate || askFanUpdate) && nikoHvac.Properties.ThermostatOn == "On" {
+	if *current.Properties[0].ThermostatOn != *new.Properties[0].ThermostatOn {
+		*current.Properties[0].ThermostatOn = *new.Properties[0].ThermostatOn
+		helpers.DebugLog(fmt.Sprintf("Thermostat Status changed: %t", *new.Properties[0].ThermostatOn), true)
+		forceFanUpdate = true
+	}
+
+	if (forceFanUpdate || askFanUpdate) && *current.Properties[0].ThermostatOn {
 		// TODO: large hysteresis if high delta and low if small delta, or adapted to temperature change.
 		if forceFanUpdate || (time.Since(lastUpdate) > time.Duration(helpers.ClientConfig.Hysteresis)*time.Minute) {
 			var fanspeed nhcModel.FanSpeed
-			if b, _ := strconv.ParseBool(nikoHvac.Properties.OverruleActive); b {
-				ambientTemp, _ := strconv.ParseFloat(nikoHvac.Properties.AmbientTemperature, 64)
-				overruleSetpoint, _ := strconv.ParseFloat(nikoHvac.Properties.OverruleSetpoint, 64)
-				fanspeed = calculateFanSpeed(ambientTemp, overruleSetpoint, *nikoHvac)
+			if *current.Properties[0].OverruleActive { // OverruleActive is a string, easier to compare than tryparse
+				fanspeed = calculateFanSpeed(*current.Properties[0].AmbientTemperature, *current.Properties[0].OverruleSetpoint, *current)
 			} else {
-				ambientTemp, _ := strconv.ParseFloat(nikoHvac.Properties.AmbientTemperature, 64)
-				setpointTemp, _ := strconv.ParseFloat(nikoHvac.Properties.SetpointTemperature, 64)
-				fanspeed = calculateFanSpeed(ambientTemp, setpointTemp, *nikoHvac)
+				fanspeed = calculateFanSpeed(*current.Properties[0].AmbientTemperature, *current.Properties[0].SetpointTemperature, *current)
 			}
 			helpers.DebugLog(fmt.Sprintf("hysteresis reached (or forced), updating fan speed to %s", fanspeed), true)
 			mqttClient.SetFanSpeed(fanspeed)
