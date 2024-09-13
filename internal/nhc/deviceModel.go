@@ -1,6 +1,7 @@
 package deviceModel
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -33,6 +34,7 @@ type Property struct {
 	OverruleActive      *bool     `json:"OverruleActive,omitempty"`
 	OverruleSetpoint    *float64  `json:"OverruleSetpoint,omitempty"`
 	OverruleTime        *string   `json:"OverruleTime,omitempty"`
+	UpdatedProperties   PropertyFieldUpdated
 }
 
 type FanSpeed int
@@ -42,6 +44,19 @@ const (
 	Medium
 	Low
 )
+
+type PropertyFieldUpdated struct {
+	ThermostatOn        bool
+	HvacOn              bool
+	Program             bool
+	OperationMode       bool
+	AmbientTemperature  bool
+	SetpointTemperature bool
+	FanSpeed            bool
+	OverruleActive      bool
+	OverruleSetpoint    bool
+	OverruleTime        bool
+}
 
 func (fs FanSpeed) String() string {
 	return [...]string{"High", "Medium", "Low"}[fs]
@@ -58,6 +73,7 @@ func (d *Device) UpdateDeviceByUuid(updateMap map[string]interface{}) {
 			if props, ok := deviceMap["Properties"].([]interface{}); ok && len(props) > 0 {
 				for _, propData := range props {
 					if propMap, ok := propData.(map[string]interface{}); ok {
+						d.Properties[0].ResetUpdatedProperties()
 						d.Properties[0].UpdateDeviceProperties(propMap)
 					}
 				}
@@ -67,29 +83,69 @@ func (d *Device) UpdateDeviceByUuid(updateMap map[string]interface{}) {
 	}
 }
 
+func (d *Property) ResetUpdatedProperties() {
+	v := reflect.ValueOf(&d.UpdatedProperties).Elem()
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if field.Kind() == reflect.Bool && field.CanSet() {
+			field.SetBool(false)
+		}
+	}
+}
+
 func (p *Property) UpdateDeviceProperties(data map[string]interface{}) {
 	for key, value := range data {
 		switch key {
 		case "ThermostatOn":
-			p.ThermostatOn = parseBool(value)
+			if p.ThermostatOn != nil && p.ThermostatOn != parseBool(value) {
+				p.ThermostatOn = parseBool(value)
+				p.UpdatedProperties.ThermostatOn = true
+			}
 		case "HvacOn":
-			p.HvacOn = parseBool(value)
+			if p.HvacOn != nil && p.HvacOn != parseBool(value) {
+				p.HvacOn = parseBool(value)
+				p.UpdatedProperties.HvacOn = true
+			}
 		case "Program":
-			p.Program = parseString(value)
+			if p.Program != nil && p.Program != parseString(value) {
+				p.Program = parseString(value)
+				p.UpdatedProperties.Program = true
+			}
 		case "OperationMode":
-			p.OperationMode = parseString(value)
+			if p.OperationMode != nil && p.OperationMode != parseString(value) {
+				p.OperationMode = parseString(value)
+				p.UpdatedProperties.OperationMode = true
+			}
 		case "AmbientTemperature":
-			p.AmbientTemperature = parseFloat64(value)
+			if p.AmbientTemperature != nil && p.AmbientTemperature != parseFloat64(value) {
+				p.AmbientTemperature = parseFloat64(value)
+				p.UpdatedProperties.AmbientTemperature = true
+			}
 		case "SetpointTemperature":
-			p.SetpointTemperature = parseFloat64(value)
+			if p.SetpointTemperature != nil && p.SetpointTemperature != parseFloat64(value) {
+				p.SetpointTemperature = parseFloat64(value)
+				p.UpdatedProperties.SetpointTemperature = true
+			}
 		case "FanSpeed":
-			p.FanSpeed = parseFanSpeed(value)
+			if p.FanSpeed != nil && p.FanSpeed != parseFanSpeed(value) {
+				p.FanSpeed = parseFanSpeed(value)
+				p.UpdatedProperties.FanSpeed = true
+			}
 		case "OverruleActive":
-			p.OverruleActive = parseBool(value)
+			if p.OverruleActive != nil && p.OverruleActive != parseBool(value) {
+				p.OverruleActive = parseBool(value)
+				p.UpdatedProperties.OverruleActive = true
+			}
 		case "OverruleSetpoint":
-			p.OverruleSetpoint = parseFloat64(value)
+			if p.OverruleSetpoint != nil && p.OverruleSetpoint != parseFloat64(value) {
+				p.OverruleSetpoint = parseFloat64(value)
+				p.UpdatedProperties.OverruleSetpoint = true
+			}
 		case "OverruleTime":
-			p.OverruleTime = parseString(value)
+			if p.OverruleTime != nil && p.OverruleTime != parseString(value) {
+				p.OverruleTime = parseString(value)
+				p.UpdatedProperties.OverruleTime = true
+			}
 		}
 	}
 }
@@ -145,31 +201,3 @@ func parseFanSpeed(value interface{}) *FanSpeed {
 	}
 	return nil
 }
-
-// // Function to update the device properties based on the update map
-// func (d *Device) ApplyUpdate(updateMap map[string]interface{}) {
-// 	// Access "Params" key
-// 	if params, ok := updateMap["Params"].([]interface{}); ok {
-// 		for _, paramData := range params {
-// 			if paramMap, ok := paramData.(map[string]interface{}); ok {
-// 				// Access "Devices" key within Params
-// 				if devices, ok := paramMap["Devices"].([]interface{}); ok {
-// 					for _, deviceData := range devices {
-// 						if deviceMap, ok := deviceData.(map[string]interface{}); ok {
-// 							if deviceUuid, ok := deviceMap["Uuid"].(string); ok && deviceUuid == d.Uuid {
-// 								// Update the properties
-// 								if props, ok := deviceMap["Properties"].([]interface{}); ok && len(props) > 0 {
-// 									for _, propData := range props {
-// 										if propMap, ok := propData.(map[string]interface{}); ok {
-// 											d.Properties[0].ApplyUpdate(propMap)
-// 										}
-// 									}
-// 								}
-// 							}
-// 						}
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-// }
