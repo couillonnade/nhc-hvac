@@ -67,9 +67,8 @@ func calculateFanSpeed(currentTemp, setPoint float64, operationMode string) nhcM
 			return nhcModel.High
 		}
 
-	} else {
-		// TODO: check if fan should be off
-		helpers.DebugLog("Fan should set to low because setpoint overshoot", true)
+	} else { // Setpoint overshoot, set FanSpeed to Low
+		// TODO: should Thermostat be off after a while?
 		return nhcModel.Low
 	}
 }
@@ -119,7 +118,7 @@ func updateFanSpeed(HvacTh nhcModel.Device) {
 	}
 
 	// TODO: Create a pipe to avoid blasiting mqtt messages when too many force updated at the same time
-	if (forceFanUpdate || askFanUpdate) && HvacTh.Properties[0].UpdatedProperties.ThermostatOn {
+	if (forceFanUpdate || askFanUpdate) && *HvacTh.Properties[0].ThermostatOn {
 		// TODO: large hysteresis if high delta and low if small delta, or adapted to temperature change.
 		if forceFanUpdate || (time.Since(lastUpdate) > time.Duration(helpers.ClientConfig.Hysteresis)*time.Minute) {
 			var fanspeed nhcModel.FanSpeed
@@ -134,10 +133,11 @@ func updateFanSpeed(HvacTh nhcModel.Device) {
 			} else {
 				mode = "Forced update"
 			}
-
-			helpers.DebugLog(fmt.Sprintf(mode+", setting fan speed to %s", fanspeed), true)
-			mqttClient.SetFanSpeed(fanspeed)
-			lastUpdate = time.Now()
+			if *HvacTh.Properties[0].FanSpeed != fanspeed {
+				helpers.DebugLog(fmt.Sprintf(mode+", setting fan speed to %s", fanspeed), true)
+				mqttClient.SetFanSpeed(fanspeed)
+				lastUpdate = time.Now()
+			}
 		} else {
 			helpers.DebugLog("Hysteresis not reached, skipping fan speed update", true)
 		}
