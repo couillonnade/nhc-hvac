@@ -23,13 +23,10 @@ func onMessageReceived(client mqtt.Client, msg mqtt.Message) {
 		helpers.DebugLog(fmt.Sprint("Error decoding JSON:", err), true)
 		return
 	}
-
 	// Apply the updates to the correct device based on UUID
-	NikoHvac.UpdateDeviceByUuid(updateMap)
-
-	// TODO: place the comparaison with previous state here and send a list of updated fields to the channel
-	// Send the updated device to the channel
-	thermostatMessage <- NikoHvac
+	if NikoHvac.UpdateDeviceByUuid(updateMap) {
+		thermostatMessage <- NikoHvac
+	}
 
 }
 
@@ -58,7 +55,7 @@ func subscribe(client mqtt.Client, topics []string) {
 		if token := client.Subscribe(topic, 0, onMessageReceived); token.Wait() && token.Error() != nil {
 			helpers.DebugLog(fmt.Sprintf("Error subscribing to topic %s: %v\n", topic, token.Error()), true)
 		} else {
-			helpers.DebugLog(fmt.Sprintf("Subscribed to topic: %s\n", topic), true)
+			helpers.DebugLog(fmt.Sprintf("Subscribed to topic: %s", topic), true)
 
 		}
 	}
@@ -67,7 +64,6 @@ func subscribe(client mqtt.Client, topics []string) {
 func publish(client mqtt.Client, topic, message string) {
 	token := client.Publish(topic, 0, false, message)
 	token.Wait()
-	// helpers.DebugLog(fmt.Sprintf("Published message: %s to topic: %s\n", message, topic), true)
 }
 
 func GetHvacThData() {

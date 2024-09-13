@@ -62,7 +62,7 @@ func (fs FanSpeed) String() string {
 	return [...]string{"High", "Medium", "Low"}[fs]
 }
 
-func (d *Device) UpdateDeviceByUuid(updateMap map[string]interface{}) {
+func (d *Device) UpdateDeviceByUuid(updateMap map[string]interface{}) bool {
 	params := updateMap["Params"].([]interface{})[0].(map[string]interface{})
 	devices := params["Devices"].([]interface{})
 
@@ -78,9 +78,10 @@ func (d *Device) UpdateDeviceByUuid(updateMap map[string]interface{}) {
 					}
 				}
 			}
-			break // Found the correct device
+			return true // Found the correct device
 		}
 	}
+	return false
 }
 
 func (d *Property) ResetUpdatedProperties() {
